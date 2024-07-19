@@ -1,45 +1,79 @@
 package com.example.myfirstapp
 import android.os.Bundle
-import android.widget.Button
-import android.widget.TextView
+import android.text.Html
+import android.text.Html.FROM_HTML_MODE_COMPACT
+import android.text.Spanned
+import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
-import com.example.myfirstapp.R
-import kotlin.random.Random
+import com.example.myfirstapp.data.LottoData
+import com.example.myfirstapp.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
+    private var number: Int = 1102
+    private lateinit var binding: ActivityMainBinding
+    private val lottoController by lazy { LottoController() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val numberOne = findViewById<TextView>(R.id.number_one)
-        val numberTwo = findViewById<TextView>(R.id.number_two)
-        val numberThree = findViewById<TextView>(R.id.number_three)
-        val numberFour = findViewById<TextView>(R.id.number_four)
-        val numberFive = findViewById<TextView>(R.id.number_five)
-        val numberSix = findViewById<TextView>(R.id.number_six)
-        val numberBonus = findViewById<TextView>(R.id.number_bonus)
-        val randomButton = findViewById<Button>(R.id.random_button)
+        fetchLottoData(number)
+        with(binding) {
+            searchButton.setOnClickListener {
+                number = searchView.text.toString().toInt()
+                fetchLottoData(number)
+            }
 
-        randomButton.setOnClickListener {
-            val winNumbers = generateLottoNumbers().sorted()
-            numberOne.text = winNumbers[0].toString()
-            numberTwo.text = winNumbers[1].toString()
-            numberThree.text = winNumbers[2].toString()
-            numberFour.text = winNumbers[3].toString()
-            numberFive.text = winNumbers[4].toString()
-            numberSix.text = winNumbers[5].toString()
-            numberBonus.text = winNumbers[6].toString()
-            //val winNumbersView = listOf(numberOne, numberTwo, numberThree, numberFour, numberFive, numberSix, numberBonus)
-            //winNumbers.mapIndexed { index, number -> winNumbersView[index].text = number.toString() }
+            arrowLeft.setOnClickListener {
+                number = number.dec()
+                fetchLottoData(number)
+            }
+
+            arrowRight.setOnClickListener {
+                number = number.inc()
+                fetchLottoData(number)
+            }
         }
     }
 
-    private fun generateLottoNumbers(): Set<Int> {
-        val numbers = mutableSetOf<Int>()
-        while (numbers.size < 7) {
-            val randomNumber = Random.nextInt(1, 46) // 1부터 45까지의 숫자 중 랜덤 선택
-            numbers.add(randomNumber)
+    private fun fetchLottoData(number: Int) {
+        lottoController.getLottoNumber(number, { lottoData ->
+            updateUI(lottoData)
+        }, { _ ->
+            Toast.makeText(
+                this@MainActivity,
+                "로또 정보를 가져오는데 실패했습니다. 잠시 후 다시 이용해주세요.",
+                Toast.LENGTH_LONG
+            ).show()
+        })
+    }
+
+    private fun updateUI(data: LottoData) {
+        with(binding) {
+            winResultTextView.text = getHtmlText(R.string.winning_result, number.toString())
+            dateView.text = data.data
+            val listWinNumberView =
+                listOf(number1Text, number2Text, number3Text, number4Text, number5Text, number6Text)
+            listWinNumberView.mapIndexed { index, tv ->
+                val numbers = data.winNumbers
+                tv.text = if (numbers.isNotEmpty()) numbers[index] else ""
+            }
+            numberBonusText.text = data.bonusNumber
+            val prize = data.totalWinPrize.toBillion()
+            winAmountText.text = getHtmlText(R.string.win_prize, prize)
+            val prizeOne = data.winPrize.toBillion()
+            win1AmountText.text = getHtmlText(R.string.win_prize_1, prizeOne)
         }
-        return numbers
+    }
+
+    private fun String.toBillion(): String {
+        return if (this != "") (this.toLong() / 100_000_000).toString() else this
+    }
+
+    private fun getHtmlText(@StringRes id: Int, data: String): Spanned {
+        val text: String = getString(id, data)
+        return Html.fromHtml(text, FROM_HTML_MODE_COMPACT)
     }
 }
